@@ -4,10 +4,25 @@ import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
+// Get only users who are in the logged-in user's contacts array
 export const getUsersForSidebar = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
-    const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+    // Find the logged-in user and get their contacts
+    const user = await User.findById(loggedInUserId);
+
+    // If ?all=true is passed, return all users except the current user (for contact selection)
+    if (req.query.all === "true") {
+      const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select(
+        "-password"
+      );
+      return res.status(200).json(filteredUsers);
+    }
+
+    // Only fetch users whose IDs are in the contacts array
+    const filteredUsers = await User.find({
+      _id: { $in: user.contacts },
+    }).select("-password");
 
     res.status(200).json(filteredUsers);
   } catch (error) {
@@ -65,6 +80,25 @@ export const sendMessage = async (req, res) => {
     res.status(201).json(newMessage);
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Delete a message (for sender or for everyone)
+export const deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+    // Find the message
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    // Allow delete if sender or receiver (for simplicity)
+    if (!message.senderId.equals(userId) && !message.receiverId.equals(userId)) {
+      return res.status(403).json({ error: "Not authorized to delete this message" });
+    }
+    await Message.findByIdAndDelete(messageId);
+    res.status(200).json({ success: true, message: "Message deleted" });
+  } catch (error) {
     res.status(500).json({ error: "Internal server error" });
   }
 };

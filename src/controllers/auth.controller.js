@@ -116,3 +116,20 @@ export const checkAuth = (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+export const updateContacts = async (req, res) => {
+  try {
+    // Get the array of user IDs to add as contacts from the request body
+    const { contacts } = req.body;
+    // Update the logged-in user's contacts array
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { contacts },
+      { new: true }
+    ).select("-password");
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.error("Error updating contacts:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
